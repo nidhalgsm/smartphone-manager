@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Smartphone Manager</title>
+<link rel="manifest" href="manifest.json">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<style>
+:root{--bg:#f3efe6;--ink:#1d2623;--pine:#1f3a34;--line:#d6d0c2;--card:#fbf9f4;--ok:#2f7d4f;--bad:#b3402f}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 system-ui,sans-serif}
+header{background:var(--pine);color:#fff;padding:12px 16px;display:flex;justify-content:space-between;align-items:center}
+nav{display:flex;gap:6px;padding:10px 12px;overflow-x:auto}
+nav button{flex:1;min-width:84px}main{padding:12px;max-width:760px;margin:auto}
+button,input,select,textarea{font:inherit;padding:12px;border:1px solid var(--line);border-radius:8px;background:#fff;width:100%;margin:4px 0}
+button{background:var(--pine);color:#fff;border:0;cursor:pointer;font-weight:600}
+nav button{background:#fff;color:var(--ink);border:1px solid var(--line)}nav button.on{background:var(--pine);color:#fff}
+.row{display:flex;gap:8px}.row>*{flex:1}
+.dev{background:var(--card);border:1px solid var(--line);border-left:5px solid var(--pine);border-radius:8px;padding:10px 12px;margin:8px 0}
+.dev.parallele{border-left-color:#c58a1b}.dev.sold{opacity:.6}
+small{color:#5d6761}.msg{padding:10px;border-radius:8px;margin:8px 0}.err{background:#f6dcd7;color:var(--bad)}.good{background:#d9eddf;color:var(--ok)}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:8px}.stat{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px}.stat b{font-size:1.5rem;display:block}
+:focus-visible{outline:3px solid #c58a1b;outline-offset:2px}
+</style></head><body>
+<header><strong>Smartphone Manager</strong><button id="out" style="width:auto;margin:0;display:none" onclick="logout()">Sign out</button></header>
+<div id="app"></div>
+<script>
+// ---- Config: fill in with your Supabase project's PUBLIC (anon) values ----
+const SUPABASE_URL = "https://YOUR-PROJECT.supabase.co";
+const SUPABASE_ANON_KEY = "YOUR-ANON-PUBLIC-KEY";
+const API = "http://localhost:8000/api/v1";
+// ---------------------------------------------------------------------------
+const sbc = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const $ = id => document.getElementById(id), app = $("app");
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+let tab = "stock";
+
+async function api(path, opts = {}) {
+  const { data } = await sbc.auth.getSession();
+  const r = await fetch(API + path, { ...opts, headers: { "Content-Type": "application/json",
+    Authorization: "Bearer " + data.session.access_token } });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(typeof j.detail === "string" ? j.detail : "Check the form values and try again");
+  return j;
+}
+const msg = (el, t, ok) => el.innerHTML = t ? `<div class="msg ${ok ? "good" : "err"}">${esc(t)}</div>` : "";
+
+async function logout() { await sbc.auth.signOut(); boot(); }
+async function boot() {
+  const { data } = await sbc.auth.getSession();
+  $("out").style.display = data.session ? "block" : "none";
+  data.session ? shell() : loginView();
+}
+function loginView() {
+  app.innerHTML = `<main><h2>Sign in</h2><input id="em" type="email" placeholder="Email" autocomplete="username">
+  <input id="pw" type="password" placeholder="Password" autocomplete="current-password">
+  <button onclick="login()">Sign in</button><div id="m"></div></main>`;
+}
+async function login() {
+  const { error } = await sbc.auth.signInWithPassword({ email: $("em").value, password: $("pw").value });
+  error ? msg($("m"), "Wrong email or password") : boot();
+}
+function shell() {
+  app.innerHTML = `<nav>${[["stock","Stock"],["add","Add phone"],["sell","Sell"],["home","Summary"]]
+    .map(([k,l]) => `<button class="${k===tab?"on":""}" onclick="tab='${k}';shell()">${l}</button>`).join("")}</nav><main id="v"></main>`;
+  ({ stock: stockView, add: addView, sell: sellView, home: homeView })[tab]();
+}
+async function homeView() {
+  try { const s = await api("/dashboard/summary");
+    $("v").innerHTML = `<div class="stats">
+      <div class="stat"><b>${s.in_stock}</b>In stock</div><div class="stat"><b>${s.sold}</b>Sold</div>
+      <div class="stat"><b>${s.tunisien}</b>Tunisien in stock</div><div class="stat"><b>${s.parallele}</b>Parallèle in stock</div>
+      <div class="stat"><b>${s.stock_value_tnd.toFixed(0)}</b>Stock value (TND)</div><div class="stat"><b>${s.gross_margin_tnd.toFixed(0)}</b>Gross margin (TND)</div></div>`;
+  } catch (e) { msg($("v"), e.message); }
+}
+function dev(d) { return `<div class="dev ${d.category} ${d.status}"><strong>${esc(d.model || "Unnamed model")}</strong>
+  <small> · ${d.category === "tunisien" ? "Tunisien" : "Parallèle"} · ${d.status === "in_stock" ? "In stock" : "Sold"}</small><br>
+  <small>IMEI ${esc(d.imei1 || "—")}${d.imei2 ? " / " + esc(d.imei2) : ""}${d.serial_number ? " · S/N " + esc(d.serial_number) : ""}</small></div>`; }
+async function stockView() {
+  $("v").innerHTML = `<input id="q" type="search" placeholder="Search IMEI, serial, model, supplier"><div id="list"></div>`;
+  const load = async () => { try {
+    const q = $("q").value.trim();
+    const rows = await api("/devices?status=in_stock" + (q ? "&q=" + encodeURIComponent(q) : ""));
+    $("list").innerHTML = rows.map(dev).join("") || `<p><small>No phones in stock. Use “Add phone” to enter the first one.</small></p>`;
+  } catch (e) { msg($("list"), e.message); } };
+  let t; $("q").oninput = () => { clearTimeout(t); t = setTimeout(load, 300); }; load();
+}
+function addView() {
+  $("v").innerHTML = `<select id="cat"><option value="tunisien">Smartphone Tunisien</option><option value="parallele">Smartphone Parallèle</option></select>
+  <input id="imei1" inputmode="numeric" placeholder="IMEI 1 (15 digits)"><input id="imei2" inputmode="numeric" placeholder="IMEI 2 (optional)">
+  <input id="serial_number" placeholder="Serial Number (optional)"><input id="model" placeholder="Model">
+  <input id="supplier_name" placeholder="Supplier">
+  <div class="row"><input id="purchase_price" type="number" step="0.001" placeholder="Purchase price TND"><input id="expected_sale_price" type="number" step="0.001" placeholder="Expected sale TND"></div>
+  <textarea id="notes" placeholder="Notes"></textarea><button onclick="saveDevice()">Save phone</button><div id="m"></div>`;
+}
+async function saveDevice() {
+  const f = {category: $("cat").value};
+  for (const k of ["imei1","imei2","serial_number","model","supplier_name","notes"]) f[k] = $(k).value;
+  for (const k of ["purchase_price","expected_sale_price"]) f[k] = $(k).value ? Number($(k).value) : null;
+  try { await api("/devices", { method: "POST", body: JSON.stringify(f) }); msg($("m"), "Phone saved", true); addView(); }
+  catch (e) { msg($("m"), e.message); }
+}
+function sellView() {
+  $("v").innerHTML = `<input id="code" placeholder="Scan or type IMEI / Serial Number" autofocus>
+  <button onclick="findDevice()">Find phone</button><div id="m"></div><div id="found"></div>`;
+  $("code").onkeydown = e => e.key === "Enter" && findDevice();
+}
+let current = null;
+async function findDevice() {
+  try { current = await api("/devices/lookup/" + encodeURIComponent($("code").value.trim()));
+    if (current.status !== "in_stock") return msg($("m"), "This phone is already sold");
+    msg($("m"), ""); $("found").innerHTML = dev(current) + `<input id="price" type="number" step="0.001" placeholder="Actual sale price TND" value="${current.expected_sale_price ?? ""}">
+      <button onclick="confirmSale()">Confirm sale</button>`;
+  } catch (e) { $("found").innerHTML = ""; msg($("m"), e.message); }
+}
+async function confirmSale() {
+  const price = $("price").value;
+  if (!price && !confirm("No sale price entered. Sell anyway?")) return;
+  try { await api("/sales", { method: "POST", body: JSON.stringify({ device_id: current.id, sale_price: price ? Number(price) : null }) });
+    sellView(); msg($("m"), "Sale recorded", true);
+  } catch (e) { msg($("m"), e.message); }
+}
+sbc.auth.onAuthStateChange(() => {}); boot();
+</script></body></html>
