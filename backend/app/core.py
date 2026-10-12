@@ -31,3 +31,24 @@ def audit(user, action, entity_type, entity_id, summary=""):
     sb.table("audit_log").insert({
         "user_id": user.id, "action": action, "entity_type": entity_type,
         "entity_id": str(entity_id), "summary": summary}).execute()
+
+
+def apply_search(qry, q):
+    import re
+    if q:
+        if not re.fullmatch(r"[\w .-]{1,40}", q):
+            raise HTTPException(400, "Invalid search text")
+        qry = qry.or_(f"imei1.ilike.%{q}%,imei2.ilike.%{q}%,serial_number.ilike.%{q}%,"
+                      f"model.ilike.%{q}%,supplier_name.ilike.%{q}%")
+    return qry
+
+
+def paged(qry, page, page_size):
+    page, page_size = max(1, page), min(max(1, page_size), 50)
+    start = (page - 1) * page_size
+    try:
+        r = qry.range(start, start + page_size - 1).execute()
+        items = r.data
+    except Exception:  # page beyond the last one
+        r, items = qry.range(0, 0).execute(), []
+    return items, (r.count or 0), page, page_size
