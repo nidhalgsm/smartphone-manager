@@ -23,8 +23,9 @@ class DeviceIn(BaseModel):
     purchase_price: Optional[float] = None
     expected_sale_price: Optional[float] = None
     notes: Optional[str] = None
+    sajalni_status: Optional[Literal["autorise", "non_autorise", "bloque"]] = None
 
-    @field_validator("imei1", "imei2", "serial_number", "model", "supplier_name", "notes", mode="before")
+    @field_validator("imei1", "imei2", "serial_number", "model", "supplier_name", "notes", "sajalni_status", mode="before")
     @classmethod
     def blank_to_none(cls, v):
         v = (v or "").strip() if isinstance(v, str) or v is None else str(v)
