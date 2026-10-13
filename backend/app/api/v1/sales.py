@@ -28,5 +28,5 @@ def list_sales(q: Optional[str] = None, page: int = 1, page_size: int = 10, user
     items, total, page, page_size = paged(apply_search(qry, q), page, page_size)
     for d in items:
         s = d.pop("sales")
-        d["sale"] = s[0] if isinstance(s, list) else s
+        d["sale"] = max(s, key=lambda x: x["sale_date"]) if isinstance(s, list) else s
     return {"items": items, "total": total, "page": page, "page_size": page_size}
