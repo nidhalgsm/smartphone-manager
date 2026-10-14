@@ -110,3 +110,13 @@ def export(kind: str, user=Depends(current_user)):
         return sb.table("tasjil_checks").select("checked_at,imei_checked,serial_checked,result_status,source,message") \
             .order("checked_at", desc=True).limit(5000).execute().data
     raise HTTPException(404, "Unknown export")
+
+
+@router.get("/tasjil/last")
+def tasjil_last(user=Depends(current_user)):
+    """Latest Sajalni check per phone + number of checks."""
+    out = {}
+    for c in sb.table("tasjil_checks").select("device_id,checked_at,result_status") \
+            .order("checked_at", desc=True).limit(5000).execute().data:
+        out.setdefault(c["device_id"], {**c, "n": 0})["n"] += 1
+    return out
