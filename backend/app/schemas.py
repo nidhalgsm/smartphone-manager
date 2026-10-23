@@ -24,8 +24,11 @@ class DeviceIn(BaseModel):
     expected_sale_price: Optional[float] = None
     notes: Optional[str] = None
     sajalni_status: Optional[Literal["autorise", "non_autorise", "bloque"]] = None
+    color: Optional[str] = None
+    ram: Optional[Literal[2, 3, 4, 6, 8, 12, 16]] = None
+    rom: Optional[Literal[32, 64, 128, 256, 512]] = None
 
-    @field_validator("imei1", "imei2", "serial_number", "model", "supplier_name", "notes", "sajalni_status", mode="before")
+    @field_validator("imei1", "imei2", "serial_number", "model", "supplier_name", "notes", "sajalni_status", "color", mode="before")
     @classmethod
     def blank_to_none(cls, v):
         v = (v or "").strip() if isinstance(v, str) or v is None else str(v)
@@ -51,4 +54,5 @@ class SaleIn(BaseModel):
     device_id: str
     sale_price: Optional[float] = None
     seller_name: Optional[str] = None
+    client_name: Optional[str] = None
     notes: Optional[str] = None
