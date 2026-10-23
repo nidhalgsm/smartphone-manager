@@ -52,3 +52,10 @@ def paged(qry, page, page_size):
     except Exception:  # page beyond the last one
         r, items = qry.range(0, 0).execute(), []
     return items, (r.count or 0), page, page_size
+
+
+def clean_date(s):
+    import re
+    if s and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", s):
+        raise HTTPException(400, "Invalid date")
+    return s
