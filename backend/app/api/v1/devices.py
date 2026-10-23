@@ -2,7 +2,7 @@ import re
 from datetime import datetime, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
-from ...core import sb, current_user, audit, apply_search, paged
+from ...core import sb, current_user, audit, apply_search, paged, clean_date
 from ...schemas import DeviceIn
 
 router = APIRouter(prefix="/devices", tags=["devices"])
@@ -38,12 +38,17 @@ def create_device(d: DeviceIn, user=Depends(current_user)):
 
 @router.get("")
 def list_devices(status: Optional[str] = None, category: Optional[str] = None, q: Optional[str] = None,
-                 page: int = 1, page_size: int = 10, user=Depends(current_user)):
+                 page: int = 1, page_size: int = 10, date_from: Optional[str] = None,
+                 date_to: Optional[str] = None, user=Depends(current_user)):
     qry = sb.table("devices").select("*", count="exact").is_("deleted_at", "null").order("created_at", desc=True)
     if status:
         qry = qry.eq("status", status)
     if category:
         qry = qry.eq("category", category)
+    if clean_date(date_from):
+        qry = qry.gte("purchase_date", date_from)
+    if clean_date(date_to):
+        qry = qry.lte("purchase_date", date_to + "T23:59:59")
     items, total, page, page_size = paged(apply_search(qry, q), page, page_size)
     return {"items": items, "total": total, "page": page, "page_size": page_size}
 
